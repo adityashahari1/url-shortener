@@ -4,6 +4,8 @@ const shortid = require("shortid");
 async function handleCreateShortId(req, res) {
   const redirectUrl = req.body.url;
 
+  if (!redirectUrl) return res.status(400).json({ Error: "Url is required" });
+
   const shortUrl = shortid.generate();
 
   await URL.create({
@@ -23,7 +25,9 @@ async function handleRedirect(req, res) {
     },
     {
       $push: {
-        userVisits: Date.now(),
+        userVisits: {
+          timestamp: Date.now(),
+        },
       },
     }
   );
@@ -32,19 +36,20 @@ async function handleRedirect(req, res) {
 }
 
 async function handleVisits(req, res) {
-  const id = req.params.id;
+  const shortId = req.params.id;
 
   const result = await URL.findOne({
-    shortId: id,
+    shortId: shortId,
   });
 
   if (!result) {
     return res.status(404).json({ msg: "URL not found" });
   }
 
-  return res
-    .status(200)
-    .json({ msg: `Total website visits are ${result.userVisits.length}` });
+  return res.status(200).json({
+    totalClicks: result.userVisits.length,
+    analytics: result.userVisits,
+  });
 }
 
 module.exports = {
