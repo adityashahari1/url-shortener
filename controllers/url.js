@@ -13,7 +13,9 @@ async function handleCreateShortId(req, res) {
     redirectUrl: redirectUrl,
   });
 
-  res.redirect(`/url/${shortUrl}`);
+  return res.render("home", {
+    id: shortUrl,
+  });
 }
 
 async function handleRedirect(req, res) {
