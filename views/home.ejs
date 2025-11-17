@@ -3,45 +3,428 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Home</title>
-    <link rel="stylesheet" href="/css/styles.css" />
+    <title>URL Shortener - Home</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                50: "#eff6ff",
+                100: "#dbeafe",
+                200: "#bfdbfe",
+                300: "#93c5fd",
+                400: "#60a5fa",
+                500: "#3b82f6",
+                600: "#2563eb",
+                700: "#1d4ed8",
+                800: "#1e40af",
+                900: "#1e3a8a",
+              },
+            },
+          },
+        },
+      };
+    </script>
   </head>
-  <body>
-    <h2>URL Shortener</h2>
-    <% if (locals.id) { %>
-    <p>URL Generated: https://localhost:8000/url/<%= id %></p>
-    <% } %>
-    <div>
-      <form method="POST" action="/url">
-        <label for="">Enter Your Original URL</label>
-        <br />
-        <input type="text" name="url" placeholder="https://example.com" />
-        <br />
-        <button type="submit">Generate</button>
-      </form>
-    </div>
-    <div>
-      <% if (locals.urls) { %>
-      <table>
-        <thead>
-          <th>S. No</th>
-          <th>ShortID</th>
-          <th>RedirectURL</th>
-          <th>Clicks</th>
-        </thead>
-        <tbody>
-          <% urls.forEach((url, index) => { %>
-          <tr>
-            <td><%= index + 1 %></td>
-            <td><%= url.shortId %></td>
-            <td><%= url.redirectUrl %></td>
-            <td><%= url.userVisits.length %></td>
-          </tr>
+  <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+      <!-- Header -->
+      <header class="mb-8">
+        <div
+          class="flex justify-between items-center bg-white rounded-lg shadow-md p-4"
+        >
+          <h1
+            class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600"
+          >
+            🔗 URL Shortener
+          </h1>
+          <% if (locals.user) { %>
+          <div class="flex items-center gap-4">
+            <span class="text-gray-700"
+              >Welcome,
+              <span class="font-semibold text-blue-600"
+                ><%= user.name %></span
+              ></span
+            >
+            <a
+              href="/user/logout"
+              class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+            >
+              Logout
+            </a>
+          </div>
+          <% } %>
+        </div>
+      </header>
 
-          <% }) %>
-        </tbody>
-      </table>
+      <!-- Success/Error Messages -->
+      <% if (locals.id) { %>
+      <div
+        class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg shadow-sm animate-fade-in"
+      >
+        <div class="flex items-center">
+          <svg
+            class="w-5 h-5 text-green-500 mr-2"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <p class="text-green-700 font-medium">URL Generated Successfully!</p>
+        </div>
+        <div class="mt-3 p-3 bg-white rounded border border-green-200">
+          <p class="text-sm text-gray-600 mb-1">Short URL:</p>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              id="shortUrl"
+              value="http://localhost:8000/url/<%= id %>"
+              readonly
+              class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-blue-600 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onclick="copyToClipboard()"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      </div>
+      <% } %> <% if (locals.error) { %>
+      <div
+        class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg shadow-sm animate-fade-in"
+      >
+        <div class="flex items-center">
+          <svg
+            class="w-5 h-5 text-red-500 mr-2"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <p class="text-red-700 font-medium"><%= error %></p>
+        </div>
+      </div>
+      <% } %> <% if (locals.success) { %>
+      <div
+        class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg shadow-sm animate-fade-in"
+      >
+        <div class="flex items-center">
+          <svg
+            class="w-5 h-5 text-green-500 mr-2"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <p class="text-green-700 font-medium"><%= success %></p>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- URL Shortener Form -->
+      <div class="bg-white rounded-xl shadow-lg p-8 mb-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">Shorten Your URL</h2>
+        <form method="POST" action="/url" class="space-y-4">
+          <div>
+            <label
+              for="url"
+              class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Enter Your Original URL
+            </label>
+            <div class="flex gap-3">
+              <input
+                type="text"
+                id="url"
+                name="url"
+                placeholder="https://example.com"
+                required
+                class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+              />
+              <button
+                type="submit"
+                class="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                Shorten
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- URLs Table -->
+      <% if (locals.urls && urls.length > 0) { %>
+      <div class="bg-white rounded-xl shadow-lg p-8">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">Your Shortened URLs</h2>
+          <button
+            id="refreshBtn"
+            onclick="refreshUrls()"
+            class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg
+              id="refreshIcon"
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            <span id="refreshText">Refresh</span>
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-gray-50 border-b-2 border-gray-200">
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  #
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  Short ID
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  Short URL
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell"
+                >
+                  Original URL
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  Clicks
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody id="urlsTableBody" class="divide-y divide-gray-200">
+              <% urls.forEach((url, index) => { %>
+              <tr
+                class="hover:bg-gray-50 transition-colors duration-150"
+                data-short-id="<%= url.shortId %>"
+              >
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <%= index + 1 %>
+                </td>
+                <td
+                  class="px-4 py-4 whitespace-nowrap text-sm font-mono text-blue-600"
+                >
+                  <%= url.shortId %>
+                </td>
+                <td class="px-4 py-4 text-sm">
+                  <a
+                    href="/url/<%= url.shortId %>"
+                    target="_blank"
+                    class="text-blue-600 hover:text-blue-800 hover:underline font-mono"
+                  >
+                    http://localhost:8000/url/<%= url.shortId %>
+                  </a>
+                </td>
+                <td
+                  class="px-4 py-4 text-sm text-gray-600 hidden md:table-cell"
+                >
+                  <div class="max-w-xs truncate" title="<%= url.redirectUrl %>">
+                    <%= url.redirectUrl %>
+                  </div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <span
+                    class="click-count px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 transition-all duration-300"
+                  >
+                    <%= url.userVisits.length %>
+                  </span>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                  <a
+                    href="/url/delete/<%= url.shortId %>"
+                    onclick="return confirm('Are you sure you want to delete this URL?')"
+                    class="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                  >
+                    Delete
+                  </a>
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <% } else if (locals.urls && urls.length === 0) { %>
+      <div class="bg-white rounded-xl shadow-lg p-12 text-center">
+        <svg
+          class="mx-auto h-16 w-16 text-gray-400 mb-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+          />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-700 mb-2">No URLs Yet</h3>
+        <p class="text-gray-500">Start by shortening your first URL above!</p>
+      </div>
       <% } %>
     </div>
+
+    <style>
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.3s ease-out;
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .animate-spin {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes pulse-update {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+          background-color: #60a5fa;
+        }
+      }
+      .pulse-update {
+        animation: pulse-update 0.5s ease-in-out;
+      }
+    </style>
+
+    <script>
+      function copyToClipboard() {
+        const shortUrlInput = document.getElementById("shortUrl");
+        shortUrlInput.select();
+        shortUrlInput.setSelectionRange(0, 99999); // For mobile devices
+
+        navigator.clipboard.writeText(shortUrlInput.value).then(() => {
+          const button = event.target;
+          const originalText = button.textContent;
+          button.textContent = "Copied!";
+          button.classList.add("bg-green-600", "hover:bg-green-700");
+          button.classList.remove("bg-blue-600", "hover:bg-blue-700");
+
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove("bg-green-600", "hover:bg-green-700");
+            button.classList.add("bg-blue-600", "hover:bg-blue-700");
+          }, 2000);
+        });
+      }
+
+      async function refreshUrls() {
+        const refreshBtn = document.getElementById("refreshBtn");
+        const refreshIcon = document.getElementById("refreshIcon");
+        const refreshText = document.getElementById("refreshText");
+
+        // Disable button and show loading state
+        refreshBtn.disabled = true;
+        refreshIcon.classList.add("animate-spin");
+        refreshText.textContent = "Refreshing...";
+
+        try {
+          const response = await fetch("/url/refresh");
+          const data = await response.json();
+
+          if (data.success && data.urls) {
+            // Update click counts for each URL
+            data.urls.forEach((urlData) => {
+              const row = document.querySelector(
+                `tr[data-short-id="${urlData.shortId}"]`
+              );
+              if (row) {
+                const clickCountSpan = row.querySelector(".click-count");
+                const oldCount = parseInt(clickCountSpan.textContent);
+                const newCount = urlData.clicks;
+
+                if (oldCount !== newCount) {
+                  // Add pulse animation if count changed
+                  clickCountSpan.classList.add("pulse-update");
+                  clickCountSpan.textContent = newCount;
+
+                  // Remove animation class after animation completes
+                  setTimeout(() => {
+                    clickCountSpan.classList.remove("pulse-update");
+                  }, 500);
+                }
+              }
+            });
+
+            // Show success feedback
+            refreshText.textContent = "Refreshed!";
+            setTimeout(() => {
+              refreshText.textContent = "Refresh";
+            }, 1500);
+          } else {
+            throw new Error(data.error || "Failed to refresh");
+          }
+        } catch (error) {
+          console.error("Error refreshing URLs:", error);
+          refreshText.textContent = "Error";
+          setTimeout(() => {
+            refreshText.textContent = "Refresh";
+          }, 2000);
+        } finally {
+          // Re-enable button and remove loading state
+          refreshIcon.classList.remove("animate-spin");
+          setTimeout(() => {
+            refreshBtn.disabled = false;
+          }, 500);
+        }
+      }
+    </script>
   </body>
 </html>
