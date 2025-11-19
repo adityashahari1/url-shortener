@@ -31,6 +31,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cookieParser());
 
+// Health check endpoint
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
 app.use("/url", urlRoute);
 app.use("/", checkAuth, staticRoute);
 app.use("/user", userRoute);

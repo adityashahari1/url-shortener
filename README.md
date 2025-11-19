@@ -91,6 +91,7 @@ url-shortener/
 
 ## API Endpoints
 
+- `GET /health` - Health check endpoint (returns `{ status: "ok" }`)
 - `POST /url` - Create a new short URL (requires authentication)
 - `GET /url/:id` - Redirect to original URL (public)
 - `GET /url/refresh` - Get updated click counts (requires authentication)
