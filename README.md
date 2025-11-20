@@ -41,72 +41,18 @@ npm install
 # MongoDB should be running on mongodb://127.0.0.1:27017
 ```
 
-4. (Optional) Create a `.env` file for environment variables:
-
-```bash
-# MongoDB Connection URL (supports both MONGODB_URI and MONGODB_URL)
-MONGODB_URI=mongodb://127.0.0.1:27017/url-shortener
-# or
-MONGODB_URL=mongodb://127.0.0.1:27017/url-shortener
-
-# Server Port
-PORT=8000
-
-# Base URL (for production deployment)
-# Set this when deploying to EC2 or other servers
-# Example: https://yourdomain.com or http://your-ec2-ip:8000
-BASE_URL=
-```
-
-5. Start the server:
+4. Start the server:
 
 ```bash
 npm start
 ```
 
-6. Open your browser and navigate to:
+5. Open your browser and navigate to:
 
 ```
 http://localhost:8000
 ```
 
-## Deployment to EC2
-
-When deploying to EC2 or other production servers:
-
-1. **Set Environment Variables**:
-
-   ```bash
-   export MONGODB_URI="mongodb://your-mongodb-host:27017/url-shortener"
-   # or use MONGODB_URL (both are supported)
-   export PORT=8000
-   export BASE_URL="https://yourdomain.com"  # or http://your-ec2-ip:8000
-   ```
-
-2. **Or use a `.env` file** (recommended):
-
-   ```bash
-   MONGODB_URI=mongodb://your-mongodb-host:27017/url-shortener
-   PORT=8000
-   BASE_URL=https://yourdomain.com
-   ```
-
-3. **Install dependencies and start**:
-
-   ```bash
-   npm install
-   npm run prod  # Uses node instead of nodemon
-   ```
-
-4. **Use PM2 for process management** (recommended):
-   ```bash
-   npm install -g pm2
-   pm2 start index.js --name url-shortener
-   pm2 save
-   pm2 startup
-   ```
-
-**Note**: The application automatically detects the base URL from the request if `BASE_URL` is not set. However, setting `BASE_URL` explicitly is recommended for production to ensure correct URLs in generated short links.
 
 ## Project Structure
 
@@ -166,10 +112,7 @@ url-shortener/
 - URL validation and sanitization
 - User-specific URL access control
 
-## License
-
-ISC
-
 ## Author
 
 Aditya Shahari
+
