@@ -1,6 +1,7 @@
 const URL = require("../models/url");
 const shortid = require("shortid");
 const { URL: URLConstructor } = require("url");
+const { getBaseUrl } = require("../utils/urlHelper");
 
 function isValidUrl(string) {
   if (!string || typeof string !== "string") {
@@ -48,11 +49,14 @@ async function handleCreateShortId(req, res) {
     redirectUrl = redirectUrl.trim();
   }
 
+  const baseUrl = getBaseUrl(req);
+
   if (!redirectUrl) {
     const allUrls = await URL.find({ createdBy: req.user._id });
     return res.render("home", {
       urls: allUrls,
       user: req.user,
+      baseUrl,
       error: "URL is required",
     });
   }
@@ -63,6 +67,7 @@ async function handleCreateShortId(req, res) {
     return res.render("home", {
       urls: allUrls,
       user: req.user,
+      baseUrl,
       error:
         "Please enter a valid URL (e.g., https://example.com or example.com)",
     });
@@ -88,6 +93,7 @@ async function handleCreateShortId(req, res) {
     return res.render("home", {
       urls: allUrls,
       user: req.user,
+      baseUrl,
       id: shortUrl,
     });
   } catch (error) {
@@ -95,6 +101,7 @@ async function handleCreateShortId(req, res) {
     return res.render("home", {
       urls: allUrls,
       user: req.user,
+      baseUrl,
       error: "Something went wrong. Please try again.",
     });
   }
@@ -142,11 +149,14 @@ async function handleDeleteUrl(req, res) {
   try {
     const url = await URL.findOne({ shortId });
 
+    const baseUrl = getBaseUrl(req);
+
     if (!url) {
       const allUrls = await URL.find({ createdBy: req.user._id });
       return res.render("home", {
         urls: allUrls,
         user: req.user,
+        baseUrl,
         error: "URL not found",
       });
     }
@@ -157,6 +167,7 @@ async function handleDeleteUrl(req, res) {
       return res.render("home", {
         urls: allUrls,
         user: req.user,
+        baseUrl,
         error: "You don't have permission to delete this URL",
       });
     }
@@ -166,6 +177,7 @@ async function handleDeleteUrl(req, res) {
     return res.render("home", {
       urls: allUrls,
       user: req.user,
+      baseUrl,
       success: "URL deleted successfully",
     });
   } catch (error) {
@@ -173,6 +185,7 @@ async function handleDeleteUrl(req, res) {
     return res.render("home", {
       urls: allUrls,
       user: req.user,
+      baseUrl: getBaseUrl(req),
       error: "Something went wrong. Please try again.",
     });
   }

@@ -84,7 +84,7 @@
             <input
               type="text"
               id="shortUrl"
-              value="http://localhost:8000/url/<%= id %>"
+              value="<%= baseUrl %>/url/<%= id %>"
               readonly
               class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-blue-600 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -251,7 +251,7 @@
                     target="_blank"
                     class="text-blue-600 hover:text-blue-800 hover:underline font-mono"
                   >
-                    http://localhost:8000/url/<%= url.shortId %>
+                    <%= baseUrl %>/url/<%= url.shortId %>
                   </a>
                 </td>
                 <td

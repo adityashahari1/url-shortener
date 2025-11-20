@@ -1,21 +1,27 @@
+require("dotenv").config();
+
 const express = require("express");
 const shortid = require("shortid");
 const path = require("path");
 const cookieParser = require("cookie-parser");
-const { connectMongoDB } = require("./connection");
+const mongoose = require("mongoose");
 const urlRoute = require("./routes/url");
 const staticRoute = require("./routes/staticRouter");
 const userRoute = require("./routes/user");
 const { restrictToLoginUserOnly, checkAuth } = require("./middlewares/auth");
+const { getBaseUrl } = require("./utils/urlHelper");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 
 // Mongoose connection
-const MONGODB_URL =
-  process.env.MONGODB_URL || "mongodb://127.0.0.1:27017/url-shortener";
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  process.env.MONGODB_URL ||
+  "mongodb://127.0.0.1:27017/url-shortener";
 
-connectMongoDB(MONGODB_URL)
+mongoose
+  .connect(MONGODB_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => {
     console.error("MongoDB connection error:", err);
@@ -25,11 +31,20 @@ connectMongoDB(MONGODB_URL)
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// Trust proxy
+app.set("trust proxy", 1);
+
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cookieParser());
+
+// Add baseUrl to all views
+app.use((req, res, next) => {
+  res.locals.baseUrl = getBaseUrl(req);
+  next();
+});
 
 // Health check endpoint
 app.get("/health", (req, res) => res.json({ status: "ok" }));
@@ -40,7 +55,10 @@ app.use("/user", userRoute);
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).render("404", { user: req.user || null });
+  res.status(404).render("404", {
+    user: req.user || null,
+    baseUrl: getBaseUrl(req),
+  });
 });
 
 // Error handler
@@ -49,6 +67,7 @@ app.use((err, req, res, next) => {
   res.status(500).render("error", {
     error: "Something went wrong!",
     user: req.user || null,
+    baseUrl: getBaseUrl(req),
   });
 });
 

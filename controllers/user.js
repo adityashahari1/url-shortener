@@ -57,7 +57,16 @@ async function handleUserLogin(req, res) {
 
     const sessionId = uuidv4();
     setUser(sessionId, user);
-    res.cookie("uid", sessionId);
+
+    // Cookie settings - secure in production
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("uid", sessionId, {
+      httpOnly: true,
+      secure: isProduction, // Only send over HTTPS in production
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+
     return res.redirect("/");
   } catch (error) {
     return res.render("login", {
@@ -71,7 +80,14 @@ async function handleUserLogout(req, res) {
   if (userUid) {
     deleteUser(userUid);
   }
-  res.clearCookie("uid");
+
+  const isProduction = process.env.NODE_ENV === "production";
+  res.clearCookie("uid", {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+  });
+
   return res.redirect("/login");
 }
 

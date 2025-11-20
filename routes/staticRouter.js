@@ -1,5 +1,6 @@
 const express = require("express");
 const URL = require("../models/url");
+const { getBaseUrl } = require("../utils/urlHelper");
 
 const router = express.Router();
 
@@ -10,6 +11,7 @@ router.get("/", async (req, res) => {
   return res.render("home", {
     urls: allUrls,
     user: req.user,
+    baseUrl: getBaseUrl(req),
   });
 });
 
