@@ -89,7 +89,7 @@
               class="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-blue-600 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
-              onclick="copyToClipboard()"
+              onclick="copyToClipboard(event)"
               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
             >
               Copy
@@ -345,14 +345,66 @@
     </style>
 
     <script>
-      function copyToClipboard() {
+      function copyToClipboard(event) {
         const shortUrlInput = document.getElementById("shortUrl");
-        shortUrlInput.select();
-        shortUrlInput.setSelectionRange(0, 99999); // For mobile devices
+        if (!shortUrlInput) {
+          console.error("Short URL input not found");
+          return;
+        }
 
-        navigator.clipboard.writeText(shortUrlInput.value).then(() => {
-          const button = event.target;
-          const originalText = button.textContent;
+        const urlToCopy = shortUrlInput.value;
+        const button = event
+          ? event.target
+          : document.querySelector('button[onclick*="copyToClipboard"]');
+
+        // Try modern clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard
+            .writeText(urlToCopy)
+            .then(() => {
+              updateButtonState(button, true);
+            })
+            .catch((err) => {
+              console.error("Clipboard API failed, trying fallback:", err);
+              fallbackCopyToClipboard(urlToCopy, button);
+            });
+        } else {
+          // Fallback for older browsers
+          fallbackCopyToClipboard(urlToCopy, button);
+        }
+      }
+
+      function fallbackCopyToClipboard(text, button) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            updateButtonState(button, true);
+          } else {
+            updateButtonState(button, false);
+          }
+        } catch (err) {
+          console.error("Fallback copy failed:", err);
+          updateButtonState(button, false);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+
+      function updateButtonState(button, success) {
+        if (!button) return;
+
+        const originalText = button.textContent;
+
+        if (success) {
           button.textContent = "Copied!";
           button.classList.add("bg-green-600", "hover:bg-green-700");
           button.classList.remove("bg-blue-600", "hover:bg-blue-700");
@@ -362,7 +414,12 @@
             button.classList.remove("bg-green-600", "hover:bg-green-700");
             button.classList.add("bg-blue-600", "hover:bg-blue-700");
           }, 2000);
-        });
+        } else {
+          button.textContent = "Failed";
+          setTimeout(() => {
+            button.textContent = originalText;
+          }, 2000);
+        }
       }
 
       async function refreshUrls() {
