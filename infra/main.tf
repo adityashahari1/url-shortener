@@ -1,156 +1,201 @@
-
+# AMI for Ubuntu 22.04
 data "aws_ami" "ubuntu_2204" {
   most_recent = true
   owners      = ["099720109477"]
+
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
-
 }
 
-# Security Group
-resource "aws_security_group" "web_sg" {
-  name        = "url-shortener-sg"
-  description = "HTTP from world, SSH from my IP"
-  vpc_id      = data.aws_vpc.default.id
+# VPC + Networking (public + private subnets, IGW, NAT)
 
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.my_ip_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  tags = {
+    Name = "${var.project_name}-vpc-${var.environment}"
   }
 }
 
-# Default VPC
-data "aws_vpc" "default" {
-  default = true
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+# Public subnets for ALB
+resource "aws_subnet" "public_a" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project_name}-public-a-${var.environment}"
+  }
+}
+
+resource "aws_subnet" "public_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[1]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project_name}-public-b-${var.environment}"
+  }
+}
+
+# Private subnets for app instances
+resource "aws_subnet" "private_a" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.3.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "${var.project_name}-private-a-${var.environment}"
+  }
+}
+
+resource "aws_subnet" "private_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.4.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[1]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "${var.project_name}-private-b-${var.environment}"
+  }
+}
+
+# Internet gateway for public subnets
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.project_name}-igw-${var.environment}"
+  }
+}
+
+# NAT gateway for private subnets
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.project_name}-nat-eip-${var.environment}"
   }
 }
 
 
-# EC2 instance
-resource "aws_instance" "app" {
-  ami                         = data.aws_ami.ubuntu_2204.id
-  instance_type               = "t3.micro"
-  subnet_id                   = data.aws_subnets.default.ids[0]
-  vpc_security_group_ids      = [aws_security_group.web_sg.id]
-  key_name                    = var.key_name
-  associate_public_ip_address = true
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public_a.id
 
-    user_data = <<-EOF
-    #!/bin/bash
-    set -eux
+  tags = {
+    Name = "${var.project_name}-nat-${var.environment}"
+  }
 
-    # Update & basic tools
-    apt-get update -y
-    apt-get install -y git curl nginx
+  depends_on = [aws_internet_gateway.igw]
+}
 
-    # Node.js 20 (works fine on Ubuntu)
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y nodejs
+# Public route table (0.0.0.0/0 -> IGW)
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
 
-    # App checkout
-    cd /home/ubuntu
-    sudo -u ubuntu git clone --branch ${var.github_branch} ${var.github_repo} app
-    cd /home/ubuntu/app
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
 
-    # .env
-    cat >/home/ubuntu/app/.env <<ENVVARS
-    MONGODB_URI=${var.mongodb_uri}
-    SESSION_SECRET=${var.session_secret}
-    PORT=${var.app_port}
-    ENVVARS
-    chown ubuntu:ubuntu /home/ubuntu/app/.env
+  tags = {
+    Name = "${var.project_name}-public-rt-${var.environment}"
+  }
+}
 
-    # Install & run with PM2
-    sudo -u ubuntu npm ci || sudo -u ubuntu npm install
-    npm install -g pm2
-    sudo -u ubuntu pm2 start index.js --name urlshort
-    sudo -u ubuntu pm2 save
-    pm2 startup systemd -u ubuntu --hp /home/ubuntu
-    systemctl enable pm2-ubuntu
-    systemctl restart pm2-ubuntu || true
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
+  route_table_id = aws_route_table.public.id
+}
 
-    # Nginx reverse proxy :80 -> :${var.app_port}
-    cat >/etc/nginx/sites-available/urlshort <<NGX
-    server {
-      listen 80 default_server;
-      server_name _;
-      location / {
-        proxy_pass         http://127.0.0.1:${var.app_port};
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade \$http_upgrade;
-        proxy_set_header   Connection "upgrade";
-        proxy_set_header   Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Private route table (0.0.0.0/0 -> NAT)
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+
+  tags = {
+    Name = "${var.project_name}-private-rt-${var.environment}"
+  }
+}
+
+resource "aws_route_table_association" "private_a" {
+  subnet_id      = aws_subnet.private_a.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_b" {
+  subnet_id      = aws_subnet.private_b.id
+  route_table_id = aws_route_table.private.id
+}
+
+
+# IAM: instance role with  policy (CloudWatch)
+
+resource "aws_iam_role" "app_role" {
+  name = "${var.project_name}-app-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
       }
-    }
-    NGX
-    rm -f /etc/nginx/sites-enabled/default
-    ln -s /etc/nginx/sites-available/urlshort /etc/nginx/sites-enabled/urlshort
-    nginx -t
-    systemctl enable nginx
-    systemctl restart nginx
-  EOF
+    ]
+  })
 
-
-  tags = { Name = "url-shortener-ec2" }
+  tags = {
+    Name = "${var.project_name}-app-role-${var.environment}"
+  }
 }
 
-# Elastic IP 
-resource "aws_eip" "app_eip" {
-  instance = aws_instance.app.id
-  domain   = "vpc"
+resource "aws_iam_role_policy" "app_policy" {
+  name = "${var.project_name}-app-policy-${var.environment}"
+  role = aws_iam_role.app_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CloudWatchLogsBasic"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "arn:aws:logs:${var.region}:*:log-group:/ec2/${var.project_name}/*"
+      }
+    ]
+  })
 }
 
-# Auto-recovery
-# Auto-recover the instance on host failure
-resource "aws_cloudwatch_metric_alarm" "recover" {
-  alarm_name          = "ec2-auto-recover-urlshort"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 2
-  metric_name         = "StatusCheckFailed_System"
-  namespace           = "AWS/EC2"
-  period              = 60
-  statistic           = "Minimum"
-  threshold           = 0
-  alarm_description   = "Recover instance on host failure"
-  dimensions          = { InstanceId = aws_instance.app.id }
-  alarm_actions       = ["arn:aws:automate:${var.region}:ec2:recover"]
-}
-
-# CPU high alarm 
-resource "aws_cloudwatch_metric_alarm" "cpu_high" {
-  alarm_name          = "ec2-high-cpu-urlshort"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 2
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = 120
-  statistic           = "Average"
-  threshold           = 80
-  alarm_description   = "CPU > 80%"
-  dimensions          = { InstanceId = aws_instance.app.id }
+resource "aws_iam_instance_profile" "app_instance_profile" {
+  name = "${var.project_name}-instance-profile-${var.environment}"
+  role = aws_iam_role.app_role.name
 }

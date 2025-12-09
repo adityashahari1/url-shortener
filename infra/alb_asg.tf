@@ -2,7 +2,7 @@
 resource "aws_security_group" "alb_sg" {
   name        = "urlshort-alb-sg"
   description = "ALB: allow HTTP from world"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 80
@@ -17,13 +17,19 @@ resource "aws_security_group" "alb_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${var.project_name}-alb-sg-${var.environment}"
+  }
 }
+
 
 resource "aws_security_group" "app_asg_sg" {
   name        = "urlshort-app-asg-sg"
-  description = "App: allow HTTP from ALB; SSH from my IP"
-  vpc_id      = data.aws_vpc.default.id
+  description = "App: allow HTTP from ALB only"
+  vpc_id      = aws_vpc.main.id
 
+  
   ingress {
     from_port       = 80
     to_port         = 80
@@ -31,12 +37,7 @@ resource "aws_security_group" "app_asg_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.my_ip_cidr]
-  }
+  
 
   egress {
     from_port   = 0
@@ -44,21 +45,30 @@ resource "aws_security_group" "app_asg_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${var.project_name}-app-sg-${var.environment}"
+  }
 }
+
 
 resource "aws_lb" "app_alb" {
   name               = "urlshort-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = slice(data.aws_subnets.default.ids, 0, 2)
+  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+
+  tags = {
+    Name = "${var.project_name}-alb-${var.environment}"
+  }
 }
 
 resource "aws_lb_target_group" "app_tg" {
   name        = "urlshort-tg"
   port        = 80
   protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id
   target_type = "instance"
 
   health_check {
@@ -69,24 +79,36 @@ resource "aws_lb_target_group" "app_tg" {
     interval            = 15
     matcher             = "200"
   }
+
+  tags = {
+    Name = "${var.project_name}-tg-${var.environment}"
+  }
 }
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.app_alb.arn
   port              = 80
   protocol          = "HTTP"
+
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
 
+
 resource "aws_launch_template" "app_lt" {
   name_prefix   = "urlshort-lt-"
   image_id      = data.aws_ami.ubuntu_2204.id
   instance_type = var.asg_instance_type
   key_name      = var.key_name
+
   vpc_security_group_ids = [aws_security_group.app_asg_sg.id]
+
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.app_instance_profile.name
+  }
 
   user_data = base64encode(<<-EOF
     #!/bin/bash
@@ -95,16 +117,19 @@ resource "aws_launch_template" "app_lt" {
     apt-get install -y git curl nginx
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
+
     cd /home/ubuntu
     sudo -u ubuntu git clone --branch ${var.github_branch} ${var.github_repo} app || true
     cd /home/ubuntu/app && sudo -u ubuntu git pull || true
+
     cat >/home/ubuntu/app/.env <<ENVVARS
     MONGODB_URI=${var.mongodb_uri}
     SESSION_SECRET=${var.session_secret}
     PORT=${var.app_port}
-    PUBLIC_BASE_URL=http://$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
     ENVVARS
+
     chown ubuntu:ubuntu /home/ubuntu/app/.env
+
     sudo -u ubuntu npm ci || sudo -u ubuntu npm install
     npm install -g pm2
     sudo -u ubuntu pm2 start index.js --name urlshort
@@ -112,6 +137,7 @@ resource "aws_launch_template" "app_lt" {
     pm2 startup systemd -u ubuntu --hp /home/ubuntu || true
     systemctl enable pm2-ubuntu || true
     systemctl restart pm2-ubuntu || true
+
     cat >/etc/nginx/sites-available/urlshort <<NGX
     server {
       listen 80 default_server;
@@ -126,6 +152,7 @@ resource "aws_launch_template" "app_lt" {
       }
     }
     NGX
+
     rm -f /etc/nginx/sites-enabled/default || true
     ln -s /etc/nginx/sites-available/urlshort /etc/nginx/sites-enabled/urlshort || true
     nginx -t
@@ -133,6 +160,10 @@ resource "aws_launch_template" "app_lt" {
     systemctl restart nginx
   EOF
   )
+
+  tags = {
+    Name = "${var.project_name}-lt-${var.environment}"
+  }
 }
 
 resource "aws_autoscaling_group" "app_asg" {
@@ -140,7 +171,7 @@ resource "aws_autoscaling_group" "app_asg" {
   desired_capacity          = var.asg_desired
   min_size                  = var.asg_min
   max_size                  = var.asg_max
-  vpc_zone_identifier       = slice(data.aws_subnets.default.ids, 0, 2)
+  vpc_zone_identifier       = [aws_subnet.private_a.id, aws_subnet.private_b.id]
   health_check_type         = "ELB"
   health_check_grace_period = 90
   target_group_arns         = [aws_lb_target_group.app_tg.arn]
@@ -153,12 +184,19 @@ resource "aws_autoscaling_group" "app_asg" {
   lifecycle {
     create_before_destroy = true
   }
+
+  tag {
+    key                 = "Name"
+    value               = "${var.project_name}-asg-${var.environment}"
+    propagate_at_launch = true
+  }
 }
 
 resource "aws_autoscaling_policy" "cpu_scale" {
   name                   = "urlshort-asg-cpu"
   policy_type            = "TargetTrackingScaling"
   autoscaling_group_name = aws_autoscaling_group.app_asg.name
+
   target_tracking_configuration {
     predefined_metric_specification {
       predefined_metric_type = "ASGAverageCPUUtilization"
