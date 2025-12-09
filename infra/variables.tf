@@ -37,3 +37,19 @@ variable "app_port" {
   type    = number
   default = 8000
 }
+
+
+variable "project_name" {
+  type    = string
+  default = "url-shortener"
+}
+
+variable "owner" {
+  type    = string
+  default = "AdityaShahari"
+}
+
+variable "environment" {
+  type    = string
+  default = "dev"
+}

@@ -8,6 +8,20 @@ terraform {
   }
 }
 
+# Global tagging policy
+locals {
+  common_tags = {
+    Project     = var.project_name
+    Owner       = var.owner
+    Environment = var.environment
+  }
+}
+
 provider "aws" {
   region = var.region
+
+  # Enforce tags on all resources
+  default_tags {
+    tags = local.common_tags
+  }
 }
